@@ -1,52 +1,41 @@
-// src/services/PostgresService.ts
-import { createConnection, Connection, Repository } from 'typeorm';
-import pgConfig from '../config/pg';
+import etherscanConfig from '../config/etherscan';
+import axiosService from '../modules/axios';
 
 class EtherscanService {
-    private connection: Connection;
-    private transactionRepository: Repository<Transaction>;
-
-    constructor() {
-        this.initialize();
+    constructor(config) {
+        this.baseUrl = config.baseUrl;
     }
 
-    private async initialize() {
-        // Подключение к базе данных
-        this.connection = await createConnection({
-            type: pgConfig.type,
-            host: pgConfig.host,
-            port: pgConfig.port,
-            username: pgConfig.username,
-            password: pgConfig.password,
-            database: pgConfig.database,
-            entities: [Transaction],
-        });
+    async calculateTransaction() {
+        try {
+            const lastBlockNumber = await axiosService.makeRequest('GET', `${this.baseUrl}/api`, {
+                module: 'proxy',
+                action: 'eth_blockNumber'
+            });
 
-        // Получение репозитория для сущности Transaction
-        this.transactionRepository = this.connection.getRepository(Transaction);
-    }
+            const startBlockNumber = 19000000;
+            const endBlockNumber = parseInt(lastBlockNumber.data.result, 16);
 
-    public async createTransaction(data: Partial<Transaction>): Promise<Transaction> {
-        const transaction = this.transactionRepository.create(data);
-        return await this.transactionRepository.save(transaction);
-    }
+            for (let blockNumber = startBlockNumber; blockNumber <= endBlockNumber; blockNumber++) {
+                const blockInfo = await axiosService.makeRequest('GET', 'https://api.etherscan.io/api', {
+                    module: 'proxy',
+                    action: 'eth_getBlockByNumber',
+                    tag: blockNumber.toString(16),
+                    boolean: true
+                });
 
-    public async updateTransaction(id: number, data: Partial<Transaction>): Promise<Transaction | null> {
-        const transaction = await this.transactionRepository.findOne(id);
-        if (!transaction) return null;
+                const transactions = blockInfo.data.result.transactions;
 
-        this.transactionRepository.merge(transaction, data);
-        return await this.transactionRepository.save(transaction);
-    }
-
-    public async deleteTransaction(id: number): Promise<boolean> {
-        const result = await this.transactionRepository.delete(id);
-        return result.affected > 0;
-    }
-
-    public async getTransactions(): Promise<Transaction[]> {
-        return await this.transactionRepository.find();
+                for (const transaction of transactions) {
+                    // Реализация сохранения транзакций в базу данных
+                    // Implement saving transactions to the database
+                }
+            }
+        } catch (error) {
+            console.error('Error in calculateTransaction:', error);
+        }
     }
 }
-const postgres = new EtherscanService();
-export default postgres;
+
+const etherscanService = new EtherscanService(etherscanConfig);
+export default etherscanService;

@@ -1,8 +1,7 @@
-import { startApiService } from './api';
 import CronService from './jobs/cronJob';
 
 async function runApp() {
-    const a = await CronService.saveTransactionsToDatabase();
+    const a = await CronService.getTransactions();
 }
 
 // Запуск приложения
